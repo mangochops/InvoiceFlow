@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
+import { useInvoices } from '@/lib/invoice-context'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Header from '@/components/header'
@@ -8,6 +9,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react'
+import MpesaPaymentModal from '@/components/mpesa-payment-modal'
 
 const steps = [
   {
@@ -62,14 +64,17 @@ const steps = [
 
 export default function StartInvoicingPage() {
   const { user } = useAuth()
+  const { createInvoice, updateInvoice } = useInvoices()
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
+  const [showMpesaModal, setShowMpesaModal] = useState(false)
+  const [invoiceId, setInvoiceId] = useState<string>('')
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
     balanceScreenshot: '',
-    feeAmount: '',
+    feeAmount: '2000',
     transactionId: '',
     confirmationScreenshot: '',
     invoiceAmount: '',
@@ -90,12 +95,50 @@ export default function StartInvoicingPage() {
   }
 
   const handleCompleteStep = () => {
+    // Special handling for step 2 (Make Payment)
+    if (currentStep === 1) {
+      // Open M-Pesa modal instead of completing directly
+      setShowMpesaModal(true)
+      return
+    }
+
+    // Special handling for step 1 (Register Details) - create invoice
+    if (currentStep === 0 && !invoiceId) {
+      const newInvoice = createInvoice({
+        email: formData.email,
+        phone: formData.phone,
+        amount: parseInt(formData.feeAmount) || 2000,
+        status: 'pending'
+      })
+      setInvoiceId(newInvoice.id)
+    }
+
     if (!completedSteps.includes(currentStep)) {
       setCompletedSteps([...completedSteps, currentStep])
     }
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     }
+  }
+
+  const handleMpesaSuccess = (transactionId: string) => {
+    // Update invoice with transaction ID
+    if (invoiceId) {
+      updateInvoice(invoiceId, {
+        transactionId,
+        status: 'processing'
+      })
+    }
+
+    // Store transaction ID in form
+    handleInputChange('transactionId', transactionId)
+
+    // Mark step 2 as complete and move to step 3
+    if (!completedSteps.includes(1)) {
+      setCompletedSteps([...completedSteps, 1])
+    }
+    setCurrentStep(2)
+    setShowMpesaModal(false)
   }
 
   const handlePreviousStep = () => {
@@ -117,6 +160,11 @@ export default function StartInvoicingPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-background">
       <Header />
+      <MpesaPaymentModal
+        amount={2000}
+        isOpen={showMpesaModal}
+        onSuccess={handleMpesaSuccess}
+      />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Progress bar */}
         <div className="mb-12">
@@ -219,18 +267,37 @@ export default function StartInvoicingPage() {
 
             {step.number === '02' && (
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Processing Fee Amount</label>
                 <div className="p-4 bg-secondary/50 rounded-lg mb-4">
-                  <p className="text-sm text-foreground/60">Paybill: 542542</p>
-                  <p className="text-sm text-foreground/60">Account: 68709</p>
+                  <p className="text-sm text-foreground/60 mb-2">Processing Fee Amount</p>
+                  <p className="text-3xl font-bold text-primary mb-4">KES 2,000</p>
+                  <div className="space-y-1 text-xs text-foreground/60">
+                    <p>Paybill: 542542</p>
+                    <p>Account: 68709</p>
+                  </div>
                 </div>
-                <Input
-                  type="number"
-                  placeholder="Amount in GBP"
-                  value={formData.feeAmount}
-                  onChange={(e) => handleInputChange('feeAmount', e.target.value)}
-                  className="w-full"
-                />
+
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-foreground">
+                    Click the button below to initiate M-Pesa payment. You will receive a prompt on your phone to enter your PIN.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={() => setShowMpesaModal(true)}
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-semibold h-12"
+                >
+                  Initiate M-Pesa Payment
+                </Button>
+
+                {formData.transactionId && (
+                  <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <p className="text-sm text-foreground">Payment successful</p>
+                    </div>
+                    <p className="text-xs text-foreground/60 mt-2">Transaction ID: {formData.transactionId}</p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -8,8 +8,7 @@ import Header from '@/components/header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react'
-import MpesaPaymentModal from '@/components/mpesa-payment-modal'
+import { CheckCircle2, ArrowRight, ArrowLeft, Upload } from 'lucide-react'
 
 const steps = [
   {
@@ -21,8 +20,8 @@ const steps = [
   {
     number: '02',
     title: 'Make Payment',
-    description: 'Pay the processing fee via M-Pesa to paybill 542542, account 68709',
-    fields: ['feeAmount']
+    description: 'Pay the processing fee via M-Pesa to paybill 542542, account 68709. Upload screenshot to confirm.',
+    fields: ['paymentScreenshot']
   },
   {
     number: '03',
@@ -74,8 +73,7 @@ export default function StartInvoicingPage() {
     email: '',
     phone: '',
     balanceScreenshot: '',
-    feeAmount: '2000',
-    transactionId: '',
+    paymentScreenshot: '',
     confirmationScreenshot: '',
     invoiceAmount: '',
     receiptScreenshot: ''
@@ -94,51 +92,33 @@ export default function StartInvoicingPage() {
     }))
   }
 
-  const handleCompleteStep = () => {
-    // Special handling for step 2 (Make Payment)
-    if (currentStep === 1) {
-      // Open M-Pesa modal instead of completing directly
-      setShowMpesaModal(true)
-      return
+  const handleFileUpload = (field: string, file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      handleInputChange(field, e.target?.result as string)
     }
+    reader.readAsDataURL(file)
+  }
 
+  const handleCompleteStep = () => {
     // Special handling for step 1 (Register Details) - create invoice
     if (currentStep === 0 && !invoiceId) {
       const newInvoice = createInvoice({
         email: formData.email,
         phone: formData.phone,
-        amount: parseInt(formData.feeAmount) || 2000,
+        amount: 2000,
         status: 'pending'
       })
       setInvoiceId(newInvoice.id)
     }
 
+    // Mark step as complete
     if (!completedSteps.includes(currentStep)) {
       setCompletedSteps([...completedSteps, currentStep])
     }
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     }
-  }
-
-  const handleMpesaSuccess = (transactionId: string) => {
-    // Update invoice with transaction ID
-    if (invoiceId) {
-      updateInvoice(invoiceId, {
-        transactionId,
-        status: 'processing'
-      })
-    }
-
-    // Store transaction ID in form
-    handleInputChange('transactionId', transactionId)
-
-    // Mark step 2 as complete and move to step 3
-    if (!completedSteps.includes(1)) {
-      setCompletedSteps([...completedSteps, 1])
-    }
-    setCurrentStep(2)
-    setShowMpesaModal(false)
   }
 
   const handlePreviousStep = () => {
@@ -160,14 +140,6 @@ export default function StartInvoicingPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-background">
       <Header />
-      <MpesaPaymentModal
-        amount={2000}
-        isOpen={showMpesaModal}
-        invoiceId={invoiceId}
-        phoneNumber={formData.phone}
-        userId={user?.id || ''}
-        onSuccess={handleMpesaSuccess}
-      />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Progress bar */}
         <div className="mb-12">
@@ -239,29 +211,37 @@ export default function StartInvoicingPage() {
                   <label className="block text-sm font-medium text-foreground mb-2">Phone Number</label>
                   <Input
                     type="tel"
-                    placeholder="+254 7XX XXX XXX"
+                    placeholder="+254712345678 or 0712345678"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
                     className="w-full"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Balance Screenshot</label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                  <label className="block text-sm font-medium text-foreground mb-3">Account Balance Screenshot</label>
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-secondary/50 transition-colors">
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
-                        if (file) handleInputChange('balanceScreenshot', file.name)
+                        if (file) handleFileUpload('balanceScreenshot', file)
                       }}
                       className="hidden"
                       id="balance-upload"
                     />
-                    <label htmlFor="balance-upload" className="cursor-pointer">
-                      <p className="text-sm text-foreground/60">
-                        {formData.balanceScreenshot || 'Click to upload screenshot'}
-                      </p>
+                    <label htmlFor="balance-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                      {formData.balanceScreenshot ? (
+                        <>
+                          <CheckCircle2 className="w-8 h-8 text-primary" />
+                          <p className="text-sm font-medium text-foreground">Screenshot uploaded</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 text-foreground/40" />
+                          <p className="text-sm text-foreground/60">Click to upload balance screenshot</p>
+                        </>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -270,37 +250,59 @@ export default function StartInvoicingPage() {
 
             {step.number === '02' && (
               <div>
-                <div className="p-4 bg-secondary/50 rounded-lg mb-4">
-                  <p className="text-sm text-foreground/60 mb-2">Processing Fee Amount</p>
-                  <p className="text-3xl font-bold text-primary mb-4">KES 2,000</p>
-                  <div className="space-y-1 text-xs text-foreground/60">
-                    <p>Paybill: 542542</p>
-                    <p>Account: 68709</p>
+                <div className="bg-secondary/50 rounded-lg p-6 mb-6">
+                  <p className="text-sm text-foreground/60 mb-4">Send payment to:</p>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-foreground/60 mb-1">Paybill Number</p>
+                      <p className="text-2xl font-bold text-foreground font-mono">542542</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-foreground/60 mb-1">Account Number</p>
+                      <p className="text-2xl font-bold text-foreground font-mono">68709</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-foreground/60 mb-1">Amount</p>
+                      <p className="text-2xl font-bold text-primary">KES 2,000</p>
+                    </div>
                   </div>
                 </div>
 
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-6">
                   <p className="text-sm text-foreground">
-                    Click the button below to initiate M-Pesa payment. You will receive a prompt on your phone to enter your PIN.
+                    Pay using M-Pesa. After payment, upload a screenshot of the confirmation to proceed.
                   </p>
                 </div>
 
-                <Button
-                  onClick={() => setShowMpesaModal(true)}
-                  className="w-full bg-primary hover:bg-primary/90 text-white font-semibold h-12"
-                >
-                  Initiate M-Pesa Payment
-                </Button>
-
-                {formData.transactionId && (
-                  <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-primary" />
-                      <p className="text-sm text-foreground">Payment successful</p>
-                    </div>
-                    <p className="text-xs text-foreground/60 mt-2">Transaction ID: {formData.transactionId}</p>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">Upload Payment Screenshot</label>
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-secondary/50 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleFileUpload('paymentScreenshot', file)
+                      }}
+                      className="hidden"
+                      id="payment-upload"
+                    />
+                    <label htmlFor="payment-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                      {formData.paymentScreenshot ? (
+                        <>
+                          <CheckCircle2 className="w-8 h-8 text-primary" />
+                          <p className="text-sm font-medium text-foreground">Screenshot uploaded</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 text-foreground/40" />
+                          <p className="text-sm text-foreground/60">Click to upload payment screenshot</p>
+                          <p className="text-xs text-foreground/40">or drag and drop</p>
+                        </>
+                      )}
+                    </label>
                   </div>
-                )}
+                </div>
               </div>
             )}
 

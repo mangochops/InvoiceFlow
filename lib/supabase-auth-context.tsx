@@ -21,6 +21,13 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Check if supabase is initialized
+    if (!supabase) {
+      console.warn('Supabase not initialized. Please check your environment variables.')
+      setLoading(false)
+      return
+    }
+
     // Get initial session
     const getSession = async () => {
       try {
@@ -51,6 +58,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signUp = async (email: string, password: string) => {
+    if (!supabase) return { error: 'Supabase not initialized' }
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -64,6 +72,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    if (!supabase) return { error: 'Supabase not initialized' }
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -77,6 +86,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    if (!supabase) return
     await supabase.auth.signOut()
   }
 

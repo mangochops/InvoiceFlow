@@ -2,8 +2,12 @@
 
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
+import Link from 'next/link'
+import { useAuth } from '@/lib/auth-context'
 
 export default function Hero() {
+  const { user } = useAuth()
+
   return (
     <section className="pt-20 pb-32 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto text-center">
@@ -23,12 +27,16 @@ export default function Hero() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-          <Button size="lg" className="bg-primary hover:bg-primary/90 text-white font-semibold">
-            Start Your Invoice
-            <ArrowRight className="ml-2 w-4 h-4" />
+          <Button size="lg" className="bg-primary hover:bg-primary/90 text-white font-semibold" asChild>
+            <Link href={user ? '/start-invoicing' : '/signup'}>
+              Start Your Invoice
+              <ArrowRight className="ml-2 w-4 h-4" />
+            </Link>
           </Button>
-          <Button size="lg" variant="outline" className="font-semibold border-border">
-            See How It Works
+          <Button size="lg" variant="outline" className="font-semibold border-border" asChild>
+            <Link href="#how">
+              See How It Works
+            </Link>
           </Button>
         </div>
 

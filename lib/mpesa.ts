@@ -1,59 +1,40 @@
-// M-Pesa Daraja API Integration
-
-const DARAJA_BASE_URL = 'https://sandbox.safaricom.co.ke' // Use production URL in production
+// M-Pesa Daraja API - STK Push Only
+const BASE_URL = 'https://sandbox.safaricom.co.ke' // Change to production URL for live
 const BUSINESS_SHORTCODE = process.env.MPESA_BUSINESS_SHORTCODE || '174379'
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY || ''
 const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET || ''
 const PASSKEY = process.env.MPESA_PASSKEY || ''
 const CALLBACK_URL = process.env.MPESA_CALLBACK_URL || 'https://invoiceflow.com/api/mpesa/callback'
 
-interface AccessTokenResponse {
-  access_token: string
-  expires_in: number
-}
+let tokenCache: { token: string; expiry: number } | null = null
 
-interface STKPushResponse {
-  MerchantRequestID: string
-  CheckoutRequestID: string
-  ResponseCode: string
-  ResponseDescription: string
-  CustomerMessage: string
-}
-
-interface STKPushPayload {
-  BusinessShortCode: string
-  Password: string
-  Timestamp: string
-  TransactionType: string
-  Amount: number
-  PartyA: string
-  PartyB: string
-  PhoneNumber: string
-  CallBackURL: string
-  AccountReference: string
-  TransactionDesc: string
-}
-
-// Get access token
+// Get OAuth access token
 async function getAccessToken(): Promise<string> {
+  // Return cached token if still valid
+  if (tokenCache && tokenCache.expiry > Date.now()) {
+    return tokenCache.token
+  }
+
+  const auth = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64')
+
   try {
-    const auth = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64')
-    
-    const response = await fetch(
-      `${DARAJA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Basic ${auth}`,
-        },
-      }
-    )
+    const response = await fetch(`${BASE_URL}/oauth/v1/generate?grant_type=client_credentials`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${auth}`,
+      },
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get access token: ${response.statusText}`)
     }
 
-    const data = (await response.json()) as AccessTokenResponse
+    const data = await response.json() as { access_token: string; expires_in: number }
+    tokenCache = {
+      token: data.access_token,
+      expiry: Date.now() + data.expires_in * 1000,
+    }
+
     return data.access_token
   } catch (error) {
     console.error('[M-Pesa] Error getting access token:', error)
@@ -61,57 +42,53 @@ async function getAccessToken(): Promise<string> {
   }
 }
 
-// Generate password for STK push
-function generatePassword(timestamp: string): string {
-  const data = `${BUSINESS_SHORTCODE}${PASSKEY}${timestamp}`
-  return Buffer.from(data).toString('base64')
-}
-
-// Initiate STK push (prompt user to enter PIN on phone)
+// Initiate STK Push - sends payment prompt to user's phone
 export async function initiateStkPush(
   phoneNumber: string,
   amount: number,
   invoiceId: string
-): Promise<STKPushResponse> {
+) {
+  const token = await getAccessToken()
+
+  // Format phone number: ensure it starts with 254 for Kenya
+  let formattedPhone = phoneNumber.replace(/^0/, '254')
+  if (!formattedPhone.startsWith('254')) {
+    formattedPhone = `254${phoneNumber}`
+  }
+
+  // Generate timestamp
+  const timestamp = new Date().toISOString().replace(/[:-]/g, '').split('.')[0]
+
+  // Generate password for STK push
+  const password = Buffer.from(`${BUSINESS_SHORTCODE}${PASSKEY}${timestamp}`).toString('base64')
+
   try {
-    const accessToken = await getAccessToken()
-    const timestamp = new Date().toISOString().replace(/[:-]/g, '').split('.')[0]
-    const password = generatePassword(timestamp)
-
-    // Format phone number: ensure it starts with 254 for Kenya
-    let formattedPhone = phoneNumber.replace(/^0/, '254')
-    if (!formattedPhone.startsWith('254')) {
-      formattedPhone = `254${phoneNumber}`
-    }
-
-    const payload: STKPushPayload = {
-      BusinessShortCode: BUSINESS_SHORTCODE,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: 'CustomerPayBillOnline',
-      Amount: Math.round(amount),
-      PartyA: formattedPhone,
-      PartyB: BUSINESS_SHORTCODE,
-      PhoneNumber: formattedPhone,
-      CallBackURL: CALLBACK_URL,
-      AccountReference: invoiceId,
-      TransactionDesc: 'Invoice Processing Fee',
-    }
-
-    const response = await fetch(`${DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest`, {
+    const response = await fetch(`${BASE_URL}/mpesa/stkpush/v1/processrequest`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        BusinessShortCode: BUSINESS_SHORTCODE,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: 'CustomerPayBillOnline',
+        Amount: Math.round(amount),
+        PartyA: formattedPhone,
+        PartyB: BUSINESS_SHORTCODE,
+        PhoneNumber: formattedPhone,
+        CallBackURL: CALLBACK_URL,
+        AccountReference: invoiceId,
+        TransactionDesc: 'Invoice Processing Fee',
+      }),
     })
 
     if (!response.ok) {
       throw new Error(`STK Push failed: ${response.statusText}`)
     }
 
-    const data = (await response.json()) as STKPushResponse
+    const data = await response.json()
     console.log('[M-Pesa] STK Push initiated:', data)
     return data
   } catch (error) {
@@ -120,43 +97,5 @@ export async function initiateStkPush(
   }
 }
 
-// Query STK push status
-export async function queryStkPushStatus(checkoutRequestId: string): Promise<any> {
-  try {
-    const accessToken = await getAccessToken()
-    const timestamp = new Date().toISOString().replace(/[:-]/g, '').split('.')[0]
-    const password = generatePassword(timestamp)
-
-    const payload = {
-      BusinessShortCode: BUSINESS_SHORTCODE,
-      Password: password,
-      Timestamp: timestamp,
-      CheckoutRequestID: checkoutRequestId,
-    }
-
-    const response = await fetch(
-      `${DARAJA_BASE_URL}/mpesa/stkpushquery/v1/query`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Query failed: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    console.log('[M-Pesa] STK Push query result:', data)
-    return data
-  } catch (error) {
-    console.error('[M-Pesa] Error querying STK status:', error)
-    throw error
-  }
-}
-
 export { BUSINESS_SHORTCODE, CALLBACK_URL }
+

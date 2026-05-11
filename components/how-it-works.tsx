@@ -11,7 +11,7 @@ const steps = [
     number: '02',
     icon: '💳',
     title: 'Make Payment',
-    description: 'Pay the processing fee via M-Pesa to paybill 247247, account 1440184518696.'
+    description: 'Pay the processing fee via M-Pesa to paybill 542542, account 68709'
   },
   {
     number: '03',

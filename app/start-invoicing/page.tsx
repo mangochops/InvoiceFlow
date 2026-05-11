@@ -15,7 +15,7 @@ const steps = [
     number: '01',
     title: 'Register Details',
     description: 'Enter your email, phone, and upload a screenshot of your account balance.',
-    fields: ['email', 'phone', 'balanceScreenshot']
+    fields: ['email', 'phone']
   },
   {
     number: '02',
@@ -72,10 +72,10 @@ export default function StartInvoicingPage() {
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
-    balanceScreenshot: '',
     paymentScreenshot: '',
     confirmationScreenshot: '',
     invoiceAmount: '',
+    transactionId: '',
     receiptScreenshot: ''
   })
 
@@ -164,13 +164,12 @@ export default function StartInvoicingPage() {
               key={idx}
               onClick={() => setCurrentStep(idx)}
               disabled={!isStepComplete(idx) && idx !== currentStep}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                idx === currentStep
-                  ? 'border-primary bg-primary/5'
-                  : isStepComplete(idx)
+              className={`p-3 rounded-lg border-2 transition-all ${idx === currentStep
+                ? 'border-primary bg-primary/5'
+                : isStepComplete(idx)
                   ? 'border-primary/50 bg-primary/10'
                   : 'border-border bg-background/50 opacity-50 cursor-not-allowed'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-center h-8">
                 {isStepComplete(idx) ? (
@@ -218,7 +217,7 @@ export default function StartInvoicingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-3">Account Balance Screenshot</label>
+                  {/* <label className="block text-sm font-medium text-foreground mb-3">Account Balance Screenshot</label>
                   <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-secondary/50 transition-colors">
                     <input
                       type="file"
@@ -243,7 +242,7 @@ export default function StartInvoicingPage() {
                         </>
                       )}
                     </label>
-                  </div>
+                  </div> */}
                 </div>
               </>
             )}

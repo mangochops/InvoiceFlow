@@ -1,14 +1,14 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { Session, User as SupabaseUser } from '@supabase/supabase-js'
+import { Session, User as SupabaseUser, AuthChangeEvent } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
 interface AuthContextType {
   session: Session | null
   user: SupabaseUser | null
   loading: boolean
-  signUp: (email: string, password: string) => Promise<{ error?: string }>
+  signUp: (email: string, password: string) => Promise<{ error?: string; needsVerification?: boolean }>
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
 }
@@ -21,14 +21,12 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if supabase is initialized
     if (!supabase) {
       console.warn('Supabase not initialized. Please check your environment variables.')
       setLoading(false)
       return
     }
 
-    // Get initial session
     const getSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -43,9 +41,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
     getSession()
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         setSession(session)
         setUser(session?.user || null)
         setLoading(false)
@@ -60,11 +57,16 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     if (!supabase) return { error: 'Supabase not initialized' }
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       })
       if (error) return { error: error.message }
+
+      if (!data.session) {
+        return { needsVerification: true }
+      }
+
       return {}
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Sign up failed' }

@@ -1,45 +1,142 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { CheckCircle2, Phone } from 'lucide-react'
+import { CheckCircle2, Phone, AlertCircle } from 'lucide-react'
 
 interface MpesaPaymentModalProps {
   amount: number
   onSuccess: (transactionId: string) => void
   isOpen: boolean
+  invoiceId: string
+  phoneNumber: string
+  userId: string
 }
 
-export default function MpesaPaymentModal({ amount, onSuccess, isOpen }: MpesaPaymentModalProps) {
-  const [step, setStep] = useState<'prompt' | 'pin' | 'processing' | 'success'>('prompt')
-  const [pin, setPin] = useState('')
+export default function MpesaPaymentModal({
+  amount,
+  onSuccess,
+  isOpen,
+  invoiceId,
+  phoneNumber,
+  userId,
+}: MpesaPaymentModalProps) {
+  const [step, setStep] = useState<'prompt' | 'processing' | 'success' | 'error'>('prompt')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [transactionId, setTransactionId] = useState('')
+  const [checkoutRequestId, setCheckoutRequestId] = useState('')
 
   if (!isOpen) return null
 
-  const handlePaymentInitiate = () => {
-    setStep('pin')
+  const handlePaymentInitiate = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/mpesa/stkpush', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber,
+          amount,
+          invoiceId,
+          userId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to initiate payment')
+        setStep('error')
+        setLoading(false)
+        return
+      }
+
+      setCheckoutRequestId(data.checkoutRequestId)
+      setStep('processing')
+
+      // Start polling for transaction completion
+      pollTransactionStatus(data.checkoutRequestId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment initiation failed')
+      setStep('error')
+      setLoading(false)
+    }
   }
 
-  const handlePinSubmit = () => {
-    if (pin.length === 4) {
-      setStep('processing')
-      // Simulate payment processing
-      setTimeout(() => {
-        const mockTransactionId = `${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
-        setTransactionId(mockTransactionId)
-        setStep('success')
-      }, 2000)
+  const pollTransactionStatus = (checkoutId: string) => {
+    let pollCount = 0
+    const maxPolls = 60 // Poll for up to 5 minutes
+
+    const poll = async () => {
+      try {
+        const response = await fetch('/api/mpesa/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            checkoutRequestId: checkoutId,
+            invoiceId,
+          }),
+        })
+
+        const data = await response.json()
+
+        // Check if payment was successful (ResultCode 0)
+        if (data.ResultCode === '0' || data.ResultCode === 0) {
+          setTransactionId(data.MpesaReceiptNumber || data.transaction_id || checkoutId)
+          setStep('success')
+          setLoading(false)
+          return
+        }
+
+        // Check if payment failed
+        if (data.ResultCode && data.ResultCode !== '0' && pollCount > 5) {
+          setError(data.ResultDesc || 'Payment was declined')
+          setStep('error')
+          setLoading(false)
+          return
+        }
+
+        pollCount++
+        if (pollCount < maxPolls) {
+          // Poll again in 5 seconds
+          setTimeout(poll, 5000)
+        } else {
+          setError('Payment request timed out. Please check your phone.')
+          setStep('error')
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('Poll error:', err)
+        if (pollCount < maxPolls) {
+          setTimeout(poll, 5000)
+        } else {
+          setError('Failed to check payment status')
+          setStep('error')
+          setLoading(false)
+        }
+      }
     }
+
+    poll()
   }
 
   const handleSuccess = () => {
     onSuccess(transactionId)
     setStep('prompt')
-    setPin('')
+    setError('')
     setTransactionId('')
+    setCheckoutRequestId('')
+  }
+
+  const handleClose = () => {
+    setStep('prompt')
+    setError('')
+    setTransactionId('')
+    setCheckoutRequestId('')
   }
 
   return (
@@ -53,6 +150,11 @@ export default function MpesaPaymentModal({ amount, onSuccess, isOpen }: MpesaPa
               <p className="text-sm text-foreground/60">You will receive an M-Pesa prompt on your phone</p>
             </div>
 
+            <div className="bg-secondary/50 rounded-lg p-4 mb-4">
+              <p className="text-sm text-foreground/60 mb-1">Phone Number</p>
+              <p className="text-lg font-semibold text-foreground">{phoneNumber}</p>
+            </div>
+
             <div className="bg-secondary/50 rounded-lg p-4 mb-6">
               <p className="text-sm text-foreground/60 mb-1">Amount</p>
               <p className="text-3xl font-bold text-foreground">KES {amount.toLocaleString()}</p>
@@ -64,54 +166,21 @@ export default function MpesaPaymentModal({ amount, onSuccess, isOpen }: MpesaPa
               </p>
             </div>
 
-            <Button
-              onClick={handlePaymentInitiate}
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold"
-            >
-              Enter M-Pesa PIN
-            </Button>
-          </div>
-        )}
-
-        {step === 'pin' && (
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-foreground mb-6">Enter Your M-Pesa PIN</h3>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-foreground mb-2">4-Digit PIN</label>
-              <input
-                type="password"
-                maxLength={4}
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="••••"
-                className="w-full px-4 py-3 text-2xl tracking-widest text-center border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-              />
-            </div>
-
-            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                Never share your PIN with anyone. M-Pesa will never ask for it except on your phone.
-              </p>
-            </div>
-
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setStep('prompt')
-                  setPin('')
-                }}
+                onClick={handleClose}
                 className="flex-1"
+                disabled={loading}
               >
                 Cancel
               </Button>
               <Button
-                onClick={handlePinSubmit}
-                disabled={pin.length !== 4}
-                className="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handlePaymentInitiate}
+                disabled={loading}
+                className="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold"
               >
-                Confirm Payment
+                {loading ? 'Initiating...' : 'Send Payment Prompt'}
               </Button>
             </div>
           </div>
@@ -122,8 +191,13 @@ export default function MpesaPaymentModal({ amount, onSuccess, isOpen }: MpesaPa
             <div className="mb-6">
               <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Processing Payment</h3>
-            <p className="text-sm text-foreground/60">Your payment is being processed. Please wait...</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Waiting for Payment</h3>
+            <p className="text-sm text-foreground/60 mb-4">
+              A payment prompt has been sent to {phoneNumber}
+            </p>
+            <p className="text-xs text-foreground/50">
+              This may take up to 5 minutes. Please enter your M-Pesa PIN on your phone.
+            </p>
           </div>
         )}
 
@@ -134,7 +208,7 @@ export default function MpesaPaymentModal({ amount, onSuccess, isOpen }: MpesaPa
               <h3 className="text-xl font-bold text-foreground mb-2">Payment Successful</h3>
             </div>
 
-            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4">
               <p className="text-xs text-foreground/60 mb-1">Transaction ID</p>
               <p className="text-sm font-mono font-semibold text-foreground break-all">{transactionId}</p>
             </div>
@@ -152,7 +226,40 @@ export default function MpesaPaymentModal({ amount, onSuccess, isOpen }: MpesaPa
             </Button>
           </div>
         )}
+
+        {step === 'error' && (
+          <div className="p-6">
+            <div className="text-center mb-6">
+              <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-foreground mb-2">Payment Failed</h3>
+            </div>
+
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                className="flex-1"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  setStep('prompt')
+                  setError('')
+                }}
+                className="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold"
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   )
 }
+

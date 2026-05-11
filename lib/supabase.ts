@@ -2,17 +2,45 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-// Client for use in the browser (public)
-export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
-
-// Server client with service role (for API routes and server operations)
-export const supabaseServer = createClient(supabaseUrl, supabaseServiceKey, {
+// Browser client with session persistence
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: false,
-    persistSession: false,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
 })
 
-export type { Database } from './types'
+// TypeScript interfaces
+export interface User {
+  id: string
+  email: string
+  phone?: string
+  full_name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Invoice {
+  id: string
+  user_id: string
+  email: string
+  phone: string
+  amount: number
+  status: 'pending' | 'completed'
+  created_at: string
+  updated_at: string
+}
+
+export interface InvoiceStep {
+  id: string
+  invoice_id: string
+  step_number: number
+  step_name: string
+  status: 'pending' | 'completed'
+  data: Record<string, any> | null
+  completed_at?: string
+  created_at: string
+}
+

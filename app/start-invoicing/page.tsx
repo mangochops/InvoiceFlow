@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuth } from '@/lib/auth-context'
+import { useSupabaseAuth } from '@/lib/supabase-auth-context'
 import { useInvoices } from '@/lib/invoice-context'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -62,7 +62,7 @@ const steps = [
 ]
 
 export default function StartInvoicingPage() {
-  const { user } = useAuth()
+  const { user } = useSupabaseAuth()
   const { createInvoice, updateInvoice } = useInvoices()
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)

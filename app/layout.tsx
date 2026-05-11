@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
-import { AuthProvider } from '@/lib/auth-context'
+import { SupabaseAuthProvider } from '@/lib/supabase-auth-context'
 import { InvoiceProvider } from '@/lib/invoice-context'
 import './globals.css'
 
@@ -41,12 +41,12 @@ export default function RootLayout({
     <html lang="en" className="bg-background" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AuthProvider>
+          <SupabaseAuthProvider>
             <InvoiceProvider>
               {children}
               {process.env.NODE_ENV === 'production' && <Analytics />}
             </InvoiceProvider>
-          </AuthProvider>
+          </SupabaseAuthProvider>
         </ThemeProvider>
       </body>
     </html>

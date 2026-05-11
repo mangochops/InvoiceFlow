@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useAuth } from '@/lib/auth-context'
+import { useSupabaseAuth } from '@/lib/supabase-auth-context'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,21 +11,24 @@ import Link from 'next/link'
 import Header from '@/components/header'
 
 export default function SignupPage() {
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const { signup, isLoading } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const { signUp } = useSupabaseAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
     try {
-      await signup(email, password, name)
+      await signUp(email, password)
       router.push('/dashboard')
     } catch (err) {
-      setError('Signup failed. Please try again.')
+      setError(err instanceof Error ? err.message : 'Signup failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -43,18 +46,6 @@ export default function SignupPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="John Doe"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -88,9 +79,9 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-primary/90"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? 'Creating account...' : 'Sign Up'}
+                {loading ? 'Creating account...' : 'Sign Up'}
               </Button>
             </form>
 

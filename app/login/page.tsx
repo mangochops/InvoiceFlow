@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useAuth } from '@/lib/auth-context'
+import { useSupabaseAuth } from '@/lib/supabase-auth-context'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,17 +14,21 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const { login, isLoading } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const { signIn } = useSupabaseAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
     try {
-      await login(email, password)
+      await signIn(email, password)
       router.push('/dashboard')
     } catch (err) {
-      setError('Login failed. Please try again.')
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -75,9 +79,9 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-primary/90"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {loading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
 

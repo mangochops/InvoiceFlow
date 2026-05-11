@@ -3,10 +3,10 @@
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
-import { useSupabaseAuth } from '@/lib/supabase-auth-context'
+import { useAuth } from '@/lib/auth-context'
 
 export default function Hero() {
-  const { user } = useSupabaseAuth()
+  const { user } = useAuth()
 
   return (
     <section className="pt-20 pb-32 px-4 sm:px-6 lg:px-8">

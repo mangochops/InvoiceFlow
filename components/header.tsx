@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useSupabaseAuth } from '@/lib/supabase-auth-context'
+import { useAuth } from '@/lib/auth-context'
 import { useTheme } from 'next-themes'
 import { Moon, Sun } from 'lucide-react'
 import Link from 'next/link'
@@ -14,11 +14,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 export default function Header() {
-  const { user, signOut } = useSupabaseAuth()
+  const { user, logout } = useAuth()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
-  // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -60,14 +59,14 @@ export default function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm">
-                    {user.email?.split('@')[0]}
+                    {user.name}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild>
                     <Link href="/dashboard">Dashboard</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={signOut}>
+                  <DropdownMenuItem onClick={logout}>
                     Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>

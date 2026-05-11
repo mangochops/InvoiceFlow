@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useSupabaseAuth } from '@/lib/supabase-auth-context'
+import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signUp } = useSupabaseAuth()
+  const { signup, isLoading } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,7 +23,7 @@ export default function SignupPage() {
     setError('')
     setLoading(true)
     try {
-      await signUp(email, password)
+      await signup(email, password, email.split('@')[0])
       router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed. Please try again.')
@@ -79,9 +79,9 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-primary/90"
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Creating account...' : 'Sign Up'}
+                {isLoading ? 'Creating account...' : 'Sign Up'}
               </Button>
             </form>
 

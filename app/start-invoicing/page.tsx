@@ -262,7 +262,7 @@ export default function StartInvoicingPage() {
                     </div>
                     <div>
                       <p className="text-xs text-foreground/60 mb-1">Amount</p>
-                      <p className="text-2xl font-bold text-primary">KES 2,000</p>
+                      <p className="text-2xl font-bold text-primary">KES 2,535</p>
                     </div>
                   </div>
                 </div>
